@@ -1,0 +1,125 @@
+PAD low-level specs by [RO]man / (v1.0, 2004, Florin Sasu)
+----------------------------------------------------------
+[Big thanks to Pukko for his lib]
+
+DEVICE MODES
+0 5    3+2*1 01		UNUSED
+1 7    3+2*2 12		MOUSE
+4 5    3+2*1 41		STANDARD(DIGITAL)
+7 9,21 3+2*3 73/79	ANALOG
+2 9    3+2*3 23		NEGI-CON(NEGICON/NASKA/VOLUME)
+5 9    3+2*3 53		JOY STICK(ANALOGJOYSTICK)
+3 5    3+2*1 31		KONAMI-GUN
+6 9    3+2*3 63		NAMCO-GUN
+E 9,13 3+2*3 E3/E5	JOGCON
+F 9    3+2*3 F3		CONFIG
+8            80         MULTITAP
+| |        | |          +------------ name
+| |        | +----------------------- modeId
+| |        +------------------------- lo-nibble of modeId
+| +---------------------------------- size of command
++------------------------------------ hi-nibble of modeId
+
+COMMANDS
+
+Notes:
+ 1. 0x5A in send commands clears the corresponding positions in recv buffer
+		as they will be filled with requested data (see cmd=0x43)
+================================================================================
+@ 0x40  // SET_VREF_PARAM
+                 +------------------- ith                (0->11)
+                 |  +---------------- vref[ith]          (2 or vrefBuffer[idx])
+        01,40,00,02,02,xx,xx,xx,xx                       (xx=00)
+        FF,F3,5A,00,00,02,00,00,5A
+================================================================================
+A 0x41  // QUERY_BUTTON_MASK
+	0  1  2  3  4  5  6  7  8
+	01,41,00,5A,5A,5A,5A,5A,5A
+        FF,F3,5A,FF,FF,03,00,xx,5A                       (xx=00)
+                 |  |  |  |     +---- (must be pressent here!!!)
+                 |  |  |  +---------- bmask3
+                 |  |  +------------- bmask2
+                 |  +---------------- bmask1
+                 +------------------- bmask0
+================================================================================
+B 0x42  // READ_DATA
+
+ 01 42 00 xx xx
+ FF 41 5A FF FF --------------------- 04/digital
+          +--+----------------------- buttons status (1released/0pushed)
+ 01 42 00 xx xx
+ FF 41 5A FF FF --------------------- 04/digital
+          +--+----------------------- buttons status
+================================================================================
+C 0x43  // ENTER/EXIT_CONFIG_MODE; i.e. exit device mode and enter config mode
+          +-------------------------- 00 - exit config / 01 enter config
+ 01 43 00 00 5A 5A 5A 5A 5A
+ FF F3 5A 00 00 00 00 00 00 --------- new data (6 bytes)
+ 01 43 00 01 00
+ FF 41 5A FF FF --------------------- old data (2 bytes)
+ 01 43 00 01 00 00 00 00 00
+ FF 73 5A FF FF 69 78 77 84 --------- old data (6 bytes)
+ 01 43 00 01 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+ FF 79 5A FF FF 69 78 77 84 00 00 00 00 00 00 00 00 00 00 00 00 old data (18 bytes)
+================================================================================
+D 0x44	// SET_MAIN_MODE; i.e. set mode and lock
+                 +------------------- mode
+                 |  +---------------- lock
+	01,44,00,MM,LL,xx,xx,xx,xx                       (xx=00)
+	FF,F3,5A,00,00,00,00,00,00
+================================================================================
+E 0x45	// QUERY_MODEL; i.e. query model and mode
+	01,45,00,5A,5A,5A,5A,5A,5A
+        FF,F3,5A,01,02,00,02,01,00
+                 |  |  |  |  |  +---- ???
+                 |  |  |  |  +------- noOfComb: 01
+                 |  |  |  +---------- noOfAct: 02 - DUALSHOCK / 01 - JOYSTICK
+                 |  |  +------------- modeCurOffs: 00 - digital / 01 - analog/joystickmode
+                 |  +---------------- noOfmodes: 02
+                 +------------------- model: 01 - dualshock / 03 - dualshock2
+================================================================================
+F 0x46  // QUERY_ACT
+                 +------------------- idx of act
+        01,46,00,00,5A,5A,5A,5A,5A
+	FF,F3,5A,00,xx,01,02,00,0A DUALSHOCK small motor (100mA, xx=00)
+        FF,F3,5A,00,xx,04,03,01,1E JOYSTICK              (300mA, xx=00)
+	01,46,00,01,5A,5A,5A,5A,5A
+	FF,F3,5A,00,xx,01,01,01,14 DUALSHOCK big motor   (200mA, xx=00)
+                    |  |  |  |  +---- curr (10mA units)
+                    |  |  |  +------- length (0: 1 bit (on/off only),
+                    |  |  |                   1 or more: number of bytes)
+                    |  |  +---------- subfunction (1: low-speed rotation,
+                    |  |                           2: high-speed rotation)
+                    |  +------------- function (1: continuous rotation vibration)
+================================================================================
+G 0x47  // QUERY_COMB
+                 +------------------- idx of comb
+        01,47,00,00,5A,5A,5A,5A,5A
+	FF,F3,5A,00,xx,02,00,01,xx DUALSHOCK             (xx=00)
+        FF,F3,5A,00,xx,01,00,xx,xx JOYSTICK              (xx=00)
+                    |  |  |  |  +---- act2 in comb
+                    |  |  |  +------- act1 in comb
+                    |  |  +---------- act0 in comb
+                    |  +------------- noOfAct in comb
+================================================================================
+L 0x4C  // QUERY_MODE
+                 +------------------- idx of mode
+        01,4C,00,00,5A,5A,5A,5A,5A
+	FF,F3,5A,00,xx,00,04,xx,xx DIGITAL DUALSHOCK     (mode=0x0004, xx=00)
+	FF,F3,5A,00,xx,00,04,xx,xx DIGITAL JOYSTICK      (mode=0x0004, xx=00)
+	01,4C,00,01,5A,5A,5A,5A,5A
+	FF,F3,5A,00,xx,00,07,xx,xx ANALOG DUALSHOCK      (mode=0x0007, xx=00)
+	FF,F3,5A,00,xx,03,00,xx,xx ANALOG JOYSTICK       (mode=0x0300, xx=00)
+                    |  |  +---------- lo of mode         (mode is u_short)
+                    |  +------------- hi of mode
+================================================================================
+M 0x4D  // SET_ACT_ALIGN; i.e. vibration enable
+                 +--+--+--+--+--+---- act align buffer of 6 bytes
+        01,4D,00,00,01,FF,FF,FF,FF
+	FF,F3,5A,FF,FF,FF,FF,FF,FF 
+================================================================================
+O 0x4F  // SET_BUTTON_INFO
+                 +--+--+--+---------- button info buffer of 4 bytes
+        01,4F,00,FF,0F,00,00,00,00 mask for 12 buttons (w/o SELECT/START/L3/R3)
+	FF,F3,5A,00,00,00,00,00,5A
+================================================================================
